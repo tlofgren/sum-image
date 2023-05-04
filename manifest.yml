@@ -10,11 +10,16 @@ features:
   bot_user:
     display_name: Sum Image
     always_online: true
+  slash_commands:
+    - command: /sum-image
+      description: Incantation for pulling an image out of a hat
+      usage_hint: /sum-image A drawing of a monkey in a banana suit wielding a light saber.
 oauth_config:
   scopes:
     bot:
       - app_mentions:read
       - chat:write
+      - commands
 settings:
   event_subscriptions:
     bot_events:

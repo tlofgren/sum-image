@@ -7,6 +7,7 @@ from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
+from api import respond_direct_invocation
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 
@@ -18,13 +19,15 @@ def log_request(logger, body, next):
 
 
 @app.command("/sum-image")
-def slash_command(ack, body):
+def handle_slash_command(ack, say, command, client, body, logger):
+    logger.debug("command=%s body=%s", command, body)
     user_id = body["user_id"]
     ack(f"Hi, <@{user_id}>!")
+    respond_direct_invocation(client, body)
 
 
 @app.event("app_mention")
-def event_test(body, say, logger):
+def handle_app_mention(body, say, logger):
     logger.info(body)
     say("What's up?")
 
