@@ -19,10 +19,11 @@ def log_request(logger, body, next):
 
 
 @app.command("/sum-image")
-def handle_slash_command(ack, say, command, client, body, logger):
-    logger.debug("command=%s body=%s", command, body)
+def handle_slash_command(ack, say, client, body, logger):
+    logger.debug("slash command body=%s", body)
     ack()
-    respond_direct_invocation(client, body)
+    response = respond_direct_invocation(body)
+    say(response)
 
 
 @app.event("app_mention")
@@ -32,8 +33,9 @@ def handle_app_mention(body, say, logger):
 
 
 @app.event("message")
-def handle_message():
-    pass
+def handle_message(message, say):
+    response = respond_direct_invocation(message)
+    say(response)
 
 
 from flask import Flask, request
