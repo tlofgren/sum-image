@@ -21,8 +21,7 @@ def log_request(logger, body, next):
 @app.command("/sum-image")
 def handle_slash_command(ack, say, command, client, body, logger):
     logger.debug("command=%s body=%s", command, body)
-    user_id = body["user_id"]
-    ack(f"Hi, <@{user_id}>!")
+    ack()
     respond_direct_invocation(client, body)
 
 
@@ -52,8 +51,8 @@ def slack_events():
     return handler.handle(request)
 
 
-if __name__ == "__main__":
-    SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
+# if __name__ == "__main__":
+SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
 
 # pip install -r requirements.txt
 # export SLACK_SIGNING_SECRET=***
