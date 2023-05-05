@@ -1,0 +1,5 @@
+This JSON array describes a conversation with several replies in a thread:
+
+{{json_array}}
+
+Pick the top 5 keywords from these replies. Then write a one-sentence prompt for a GPT image generation model using those keywords. Rather responding in paragraph form, use JSON to structure the data. The JSON object should have 2 properties. The first is "keywords", which should be an array of the keywords found in the conversation. The second is "prompt", which should be a string with the content of the image generation prompt.

@@ -4,12 +4,24 @@ import json
 import logging
 import os
 
+from flask import render_template
 import replicate
 from slack_sdk.errors import SlackApiError
+
+from einstein import EinsteinClient
+
+EINSTEIN_GATEWAY = os.environ["EINSTEIN_GATEWAY"]
+EINSTEIN_API_KEY = os.environ["EINSTEIN_API_KEY"]
+SFDC_ORG_ID = os.environ["SFDC_ORG_ID"]
+LLM_PROVIDER = "OpenAI"
+DEFAULT_IMAGE_PROMPT = "sketch of robot contemplating its reflection in a mirror while holding a paintbrush"
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel("DEBUG")
+
+einstein = EinsteinClient(EINSTEIN_GATEWAY, EINSTEIN_API_KEY, SFDC_ORG_ID, LLM_PROVIDER)
+
 
 def _is_replicate_enabled():
     return os.environ["IS_REPLICATE_API_ENABLED"].lower() == "true"
@@ -55,12 +67,17 @@ def respond_mention(client, body):
         logger.debug("~~~THREADED_EVENT~~~")
         messages = get_thread_replies_from_event(client, event)
         logger.debug("preceding messages %s", json.dumps(messages))
+        text_prompt = build_prompt_with_list(messages)
+        image_prompt = get_text_completion(einstein, text_prompt)
     else:
+        image_prompt = event["text"]
+    if not image_prompt:
+        image_prompt = DEFAULT_IMAGE_PROMPT
         # TODO: get conversation history as input
         # TODO: remove mrkdwn
-        image_outputs = run_stable_diffusion(event["text"])
-        image_message = "\n".join(image_outputs)
-        reply_to_thread(client, event, image_message)
+    image_outputs = run_stable_diffusion(image_prompt)
+    image_message = "\n".join(image_outputs)
+    reply_to_thread(client, event, image_message)
 
 
 def reply_to_thread(client, message_event, message_content):
@@ -122,3 +139,23 @@ def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=2):
             start_idx = max(0, i - max_num_preceding)
             return messages_list[start_idx:i+1]  # include target reply
 
+
+def build_prompt_with_list(text_list):
+    text_as_json = json.dumps(text_list)
+    rendered_prompt = render_template("prompt_keyword_image_generate_prompt.txt", json_array=text_as_json)
+    logger.debug("rendered_prompt=%s", rendered_prompt)
+    return rendered_prompt
+
+
+def get_text_completion(client, prompt):
+    response = client.generate_completions(prompt)
+    if response.status_code != 200:
+        logger.error("Error from Einstein API status_code=%s content=%s", response.status_code, response.text)
+        return
+    response_payload = response.json()
+    logger.debug("einstein response=%s", response_payload)
+    resp_generations = response_payload["generations"]
+    if len(resp_generations) < 1:
+        logger.warning("unexpected response: nothing generated")
+        return ""
+    return resp_generations[0]["text"]
