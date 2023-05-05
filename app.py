@@ -10,7 +10,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
 
 
-from api import respond_direct_invocation
+from api import respond_direct_invocation, respond_mention
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 
@@ -36,9 +36,11 @@ def handle_slash_command(ack, say, client, body, logger):
 
 
 @app.event("app_mention")
-def handle_app_mention(body, say, logger):
-    logger.debug(body)
-    say("What's up?")
+def handle_app_mention(ack, say, client, body, logger):
+    ack()
+    logger.debug("handle_app_mention body=%s", body)
+    respond_mention(client, body)
+    # say("What's up?")
 
 
 @app.event("message")
@@ -70,14 +72,10 @@ from flask import Flask, request
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)
 
-@flask_app.route("/")
-def home():
-    return "Hello, Flask!"
 
-
-@flask_app.route("/slack/events", methods=["POST"])
-def slack_events():
-    return handler.handle(request)
+# @flask_app.route("/slack/events", methods=["POST"])
+# def slack_events():
+#     return handler.handle(request)
 
 
 # if __name__ == "__main__":
