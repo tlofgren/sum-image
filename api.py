@@ -1,5 +1,6 @@
 """interface for app functionality"""
 
+from dataclasses import dataclass
 import json
 import logging
 import os
@@ -22,6 +23,22 @@ logger = logging.getLogger(__name__)
 logger.setLevel("DEBUG")
 
 einstein = EinsteinClient(EINSTEIN_GATEWAY, EINSTEIN_API_KEY, SFDC_ORG_ID, LLM_PROVIDER)
+
+
+@dataclass(frozen=True)
+class ImageGeneratePromptResponse:
+    keywords: list
+    prompt: str
+
+    @classmethod
+    def from_dict(cls, data):
+        k = []
+        p = ""
+        if "keywords" in data:
+            k = data["keywords"]
+        if "prompt" in data:
+            p = data["prompt"]
+        return cls(keywords=k, prompt=p)
 
 
 def _is_replicate_enabled():
@@ -63,13 +80,16 @@ def get_random_color_image():
 
 def respond_mention(client, body):
     event = body["event"]
+    image_message = ":frame_with_picture: "
     if _is_event_threaded(event):
         # TODO: get whole thread
         logger.debug("~~~THREADED_EVENT~~~")
         messages = get_thread_replies_from_event(client, event)
         logger.debug("preceding messages %s", json.dumps(messages))
         text_prompt = build_prompt_with_list(messages)
-        image_prompt = get_text_completion(einstein, text_prompt)
+        image_prompt_response: ImageGeneratePromptResponse = get_text_completion(einstein, text_prompt)
+        image_message += "Keywords: " + ", ".join(image_prompt_response.keywords) + "\n"
+        image_prompt = image_prompt_response.prompt
     else:
         image_prompt = event["text"]
     if not image_prompt:
@@ -77,7 +97,7 @@ def respond_mention(client, body):
         # TODO: get conversation history as input
         # TODO: remove mrkdwn
     image_outputs = run_stable_diffusion(image_prompt)
-    image_message = "\n".join(image_outputs)
+    image_message += "\n".join(image_outputs)
     reply_to_thread(client, event, image_message)
 
 
@@ -123,7 +143,7 @@ def get_thread_replies_from_event(client, message_event):
         logger.error(f"Error fetching replies exc={e}")
 
 
-def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=2):
+def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=5):
     """Given a list of thread replies from the Slack API, slice a number of replies leading up and including to the target reply.
 
     Args:
@@ -134,6 +154,7 @@ def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=2):
     Returns:
         list: slice of the messages list with the replies preceding the target one, as well as the target
     """
+    # TODO: filter out replies from this app
     for i in range(len(messages_list) - 1, 0, -1):
         reply = messages_list[i]
         if reply["ts"] == target_reply_ts:
@@ -147,8 +168,9 @@ def _render_jinja_template(filename, context):
     return template.render(context)
 
 
-def build_prompt_with_list(text_list):
-    text_as_json = json.dumps(text_list)
+def build_prompt_with_list(message_list):
+    text_props = [msg["text"] for msg in message_list]
+    text_as_json = json.dumps(text_props, indent=2)
     rendered_prompt = _render_jinja_template("prompt_keyword_image_generate_prompt.txt", {"json_array": text_as_json})
     logger.debug("rendered_prompt=%s", rendered_prompt)
     return rendered_prompt
@@ -165,4 +187,7 @@ def get_text_completion(client, prompt):
     if len(resp_generations) < 1:
         logger.warning("unexpected response: nothing generated")
         return ""
-    return resp_generations[0]["text"]
+    data = json.loads(resp_generations[0]["text"])  # because of our prompt the output is actually JSON encoded in a string
+    as_class = ImageGeneratePromptResponse.from_dict(data)
+    return as_class
+
