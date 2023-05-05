@@ -4,7 +4,8 @@ import json
 import logging
 import os
 
-from flask import render_template
+# from flask import render_template
+from jinja2 import Environment, FileSystemLoader
 import replicate
 from slack_sdk.errors import SlackApiError
 
@@ -133,16 +134,22 @@ def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=2):
     Returns:
         list: slice of the messages list with the replies preceding the target one, as well as the target
     """
-    for i in range(len(messages_list), 0, -1):
+    for i in range(len(messages_list) - 1, 0, -1):
         reply = messages_list[i]
         if reply["ts"] == target_reply_ts:
             start_idx = max(0, i - max_num_preceding)
             return messages_list[start_idx:i+1]  # include target reply
 
 
+def _render_jinja_template(filename, context):
+    environ = Environment(loader=FileSystemLoader("templates/"))
+    template = environ.get_template(filename)
+    return template.render(context)
+
+
 def build_prompt_with_list(text_list):
     text_as_json = json.dumps(text_list)
-    rendered_prompt = render_template("prompt_keyword_image_generate_prompt.txt", json_array=text_as_json)
+    rendered_prompt = _render_jinja_template("prompt_keyword_image_generate_prompt.txt", {"json_array": text_as_json})
     logger.debug("rendered_prompt=%s", rendered_prompt)
     return rendered_prompt
 

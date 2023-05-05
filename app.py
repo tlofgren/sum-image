@@ -67,10 +67,10 @@ def just_ack(logger, context):
     logger.info(f"{subtype} is ignored")
 
 
-from flask import Flask, request
+# from flask import Flask, request
 
-flask_app = Flask(__name__)
-handler = SlackRequestHandler(app)
+# flask_app = Flask(__name__)
+# handler = SlackRequestHandler(app)
 
 
 # @flask_app.route("/slack/events", methods=["POST"])
