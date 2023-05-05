@@ -17,6 +17,7 @@ EINSTEIN_API_KEY = os.environ["EINSTEIN_API_KEY"]
 SFDC_ORG_ID = os.environ["SFDC_ORG_ID"]
 LLM_PROVIDER = "OpenAI"
 DEFAULT_IMAGE_PROMPT = "sketch of robot contemplating its reflection in a mirror while holding a paintbrush"
+APP_ID = ""
 
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,11 @@ def get_random_color_image():
 
 
 def respond_mention(client, body):
+    global APP_ID
+    if not APP_ID:
+        # who am i
+        APP_ID = body.get("api_app_id", "")
+        logger.debug("setting APP_ID=%s according to event", APP_ID)
     event = body["event"]
     image_message = ":frame_with_picture: "
     if _is_event_threaded(event):
@@ -144,7 +150,7 @@ def get_thread_replies_from_event(client, message_event):
 
 
 def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=5):
-    """Given a list of thread replies from the Slack API, slice a number of replies leading up and including to the target reply.
+    """Given a list of thread replies from the Slack API, slice a number of replies leading up and including to the target reply. Exclude past replies from this app so we don't eat our own tail.
 
     Args:
         messages_list (list): list of messages from conversations.replies or conversations.history
@@ -154,12 +160,22 @@ def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=5):
     Returns:
         list: slice of the messages list with the replies preceding the target one, as well as the target
     """
-    # TODO: filter out replies from this app
+    replies = []
+    target_idx = 0
     for i in range(len(messages_list) - 1, 0, -1):
         reply = messages_list[i]
         if reply["ts"] == target_reply_ts:
-            start_idx = max(0, i - max_num_preceding)
-            return messages_list[start_idx:i+1]  # include target reply
+            target_idx = i
+            replies.insert(0, reply)
+            break
+    for i in range(target_idx - 1, 0, -1):
+        reply = messages_list[i]
+        if "app_id" in reply and reply["app_id"] == APP_ID:  # don't add messages from ourselves to this list
+            continue
+        replies.insert(0, reply)
+        if len(replies) >= max_num_preceding + 1:
+            break
+    return replies
 
 
 def _render_jinja_template(filename, context):
