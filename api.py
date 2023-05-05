@@ -1,5 +1,6 @@
 """interface for app functionality"""
 
+import json
 import logging
 import os
 
@@ -52,6 +53,8 @@ def respond_mention(client, body):
     if _is_event_threaded(event):
         # TODO: get whole thread
         logger.debug("~~~THREADED_EVENT~~~")
+        messages = get_thread_replies_from_event(client, event)
+        logger.debug("preceding messages %s", json.dumps(messages))
     else:
         # TODO: get conversation history as input
         # TODO: remove mrkdwn
@@ -83,4 +86,39 @@ def reply_to_thread(client, message_event, message_content):
 def _is_event_threaded(event):
     return "thread_ts" in event
 
+
+def get_thread_replies_from_event(client, message_event):
+    if _is_event_threaded(message_event):
+        parent_ts = message_event["thread_ts"]
+    else:
+        parent_ts = message_event["ts"]
+    try:
+        result = client.conversations_replies(
+            channel=message_event["channel"],
+            ts=parent_ts,
+            limit=100,
+        )
+
+        logger.debug("conversations_replies result=%s", result)
+        return _get_preceding_replies(result["messages"], message_event["ts"])
+    except SlackApiError as e:
+        logger.error(f"Error fetching replies exc={e}")
+
+
+def _get_preceding_replies(messages_list, target_reply_ts, max_num_preceding=2):
+    """Given a list of thread replies from the Slack API, slice a number of replies leading up and including to the target reply.
+
+    Args:
+        messages_list (list): list of messages from conversations.replies or conversations.history
+        target_reply_ts (str): ts of the reply we want to target as the latest reply to slice.
+        max_num_preceding (int, optional): maximum number of replies from before the target one to slice out of the messages list. Defaults to 2.
+
+    Returns:
+        list: slice of the messages list with the replies preceding the target one, as well as the target
+    """
+    for i in range(len(messages_list), 0, -1):
+        reply = messages_list[i]
+        if reply["ts"] == target_reply_ts:
+            start_idx = max(0, i - max_num_preceding)
+            return messages_list[start_idx:i+1]  # include target reply
 
