@@ -95,6 +95,7 @@ def respond_mention(client, body):
         text_prompt = build_prompt_with_list(messages)
         image_prompt_response: ImageGeneratePromptResponse = get_text_completion(einstein, text_prompt)
         image_message += "Keywords: " + ", ".join(image_prompt_response.keywords) + "\n"
+        image_message += "Prompt: " + f'"{image_prompt_response.prompt}"' + "\n"
         image_prompt = image_prompt_response.prompt
     else:
         image_prompt = event["text"]
